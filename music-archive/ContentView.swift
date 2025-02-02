@@ -15,7 +15,11 @@ struct ContentView: View {
                         if audioManager.isPlaying && audioManager.currentFile == file {
                             audioManager.stopAudio()
                         } else {
-                            audioManager.playAudio(from: file)
+                            do {
+                                try audioManager.playAudio(from: file)
+                            } catch {
+                                print("failed to play audio \(error.localizedDescription)")
+                            }
                         }
                     } label: {
                         Image(systemName: (audioManager.isPlaying && audioManager.currentFile == file)
