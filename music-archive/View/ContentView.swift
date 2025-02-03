@@ -1,26 +1,28 @@
 import SwiftUI
 import CoreData
+import AppKit
 
 struct ContentView: View {
     @StateObject private var audioManager = AudioManager()
     @StateObject private var metadataSearch = MetadataSearch()
     @StateObject private var eventLogger = EventLogger()
+    @StateObject private var playlistStore = PlaylistStore()
 
     // Random playback state
     @State private var isRandomPlaying = false
     @State private var randomHistory: [URL] = []
     @State private var currentRandomIndex: Int = -1
-    
+
     var body: some View {
         HStack {
-            // Left: File List
+            // Left Column: Archive File List
             VStack {
                 ArchiveFileListView(
-                                   metadataSearch: metadataSearch,
-                                   audioManager: audioManager,
-                                   eventLogger: eventLogger
-                               )
-    
+                    metadataSearch: metadataSearch,
+                    audioManager: audioManager,
+                    eventLogger: eventLogger,
+                    playlistStore: playlistStore
+                )
                 HStack {
                     Button("Refresh Archive") {
                         metadataSearch.startSearch()
@@ -32,18 +34,37 @@ struct ContentView: View {
             }
             .padding()
             
-            // Right-hand column of ContentView:
+            // Center Column: Playlist View and controls
+            VStack {
+                HStack {
+                    Button("New Playlist") {
+                        // Create a new playlist using all archive files (in random order).
+                        playlistStore.createNewPlaylist(withTracks: metadataSearch.audioFiles, name: "My Playlist")
+                        eventLogger.log("Created new playlist", isError: false)
+                    }
+                    Button("Load Playlist") {
+                        // For demonstration, simply load the first saved playlist.
+                        if let first = playlistStore.playlists.first {
+                            playlistStore.loadPlaylist(first)
+                            eventLogger.log("Loaded playlist \(first.name)", isError: false)
+                        }
+                    }
+                }
+                .padding()
+                PlaylistView(playlistStore: playlistStore, audioManager: audioManager, eventLogger: eventLogger)
+            }
+            .padding()
+            
+            // Right Column: Control Panel, Now Playing, and Event Log
             VStack {
                 // --- Control Panel ---
                 VStack {
-                    // Large Random Play/Stop Button & transport controls...
-                   
                     PlayButton(
                         metadataSearch: metadataSearch,
                         audioManager: audioManager,
                         eventLogger: eventLogger,
-                        startPlaybackAction: startRandomPlayback)
-                    
+                        startPlaybackAction: startRandomPlayback
+                    )
                     HStack {
                         Button(action: { previousTrack() }) {
                             Image(systemName: "backward.fill")
@@ -51,8 +72,6 @@ struct ContentView: View {
                                 .frame(width: 40, height: 40)
                         }
                         .padding()
-                        
-
                         Button(action: { nextTrack() }) {
                             Image(systemName: "forward.fill")
                                 .resizable()
@@ -74,7 +93,6 @@ struct ContentView: View {
                             StarRatingView(file: currentFile)
                         }
                         .padding(.vertical, 4)
-                        // Display the creation date on a new line.
                         if let creationDate = try? currentFile.resourceValues(forKeys: [.creationDateKey]).creationDate {
                             Text(DateFormatter.dateOnly.string(from: creationDate))
                                 .font(.caption)
@@ -110,7 +128,7 @@ struct ContentView: View {
                         }
                         .padding(.horizontal, 4)
                     }
-                    .frame(width: 300, height: 400) // Adjust as needed.
+                    .frame(width: 300, height: 400)
                 }
             }
             .padding()
@@ -121,7 +139,7 @@ struct ContentView: View {
             audioManager.logEvent = { message, isError in
                 eventLogger.log(message, isError: isError)
             }
-            // If an error occurs or a track finishes while in random mode, jump to the next track.
+            // Handle error and finish callbacks for random playback.
             audioManager.errorHandler = { failedFile in
                 if isRandomPlaying {
                     eventLogger.log("Error with \(failedFile.lastPathComponent), skipping...", isError: true)
@@ -138,7 +156,6 @@ struct ContentView: View {
     }
     
     // MARK: - Random Playback Controls
-    
     func startRandomPlayback() {
         guard !metadataSearch.audioFiles.isEmpty else {
             eventLogger.log("No files available for random playback", isError: true)
@@ -158,11 +175,9 @@ struct ContentView: View {
         }
         var nextFile: URL?
         if currentRandomIndex < randomHistory.count - 1 {
-            // Use the next file from history.
             currentRandomIndex += 1
             nextFile = randomHistory[currentRandomIndex]
         } else {
-            // Pick a new random file (avoid repeating current file if possible).
             let candidates = metadataSearch.audioFiles.filter { $0 != audioManager.currentFile }
             nextFile = candidates.randomElement() ?? metadataSearch.audioFiles.randomElement()
             if let file = nextFile {
@@ -180,12 +195,10 @@ struct ContentView: View {
     }
     
     func previousTrack() {
-        // If more than 5 seconds into the track, restart instead.
         if audioManager.currentPlaybackTime > 5.0 {
             audioManager.restartCurrentTrack()
             return
         }
-        
         guard currentRandomIndex > 0 else { return }
         currentRandomIndex -= 1
         let file = randomHistory[currentRandomIndex]
@@ -195,12 +208,4 @@ struct ContentView: View {
             eventLogger.log("Failed to play \(file.lastPathComponent): \(error.localizedDescription)", isError: true)
         }
     }
-    
-}
-
-
-
-// Debug preview
-#Preview {
-    ContentView()
 }

@@ -5,6 +5,7 @@ struct ArchiveFileListView: View {
     @ObservedObject var metadataSearch: MetadataSearch
     @ObservedObject var audioManager: AudioManager
     @ObservedObject var eventLogger: EventLogger
+    @ObservedObject var playlistStore: PlaylistStore
 
     var body: some View {
         List(metadataSearch.audioFiles, id: \.self) { file in
@@ -13,10 +14,8 @@ struct ArchiveFileListView: View {
                 Spacer()
                 StarRatingView(file: file)
             }
-            .contentShape(Rectangle()) // Make the entire row tappable.
+            .contentShape(Rectangle())
             .onTapGesture {
-                // Toggle pause/resume if this file is currently playing,
-                // otherwise start playback of the new file.
                 if audioManager.currentFile == file {
                     if audioManager.isPlaying {
                         audioManager.pauseAudio()
@@ -39,9 +38,11 @@ struct ArchiveFileListView: View {
                 Button("Show in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
                 }
+                Button("Add to Playlist") {
+                    playlistStore.addFileToCurrentPlaylist(file: file)
+                    eventLogger.log("Added \(file.lastPathComponent) to playlist", isError: false)
+                }
             }
         }
     }
 }
-
-
