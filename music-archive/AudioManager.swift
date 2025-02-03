@@ -8,8 +8,10 @@ class AudioManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
     @Published var currentFile: URL?
     @Published var isLoading = false
 
-    // Now expecting both a message and an error flag.
+    // Callbacks for logging, error, and finish events.
     var logEvent: ((String, Bool) -> Void)?
+    var errorHandler: ((URL) -> Void)?
+    var finishHandler: (() -> Void)?
     
     private var player: AVAudioPlayer?
     
@@ -25,13 +27,14 @@ class AudioManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
         } catch let error as NSError {
             if error.code == 2003334207 {
                 logEvent?("File not fully available: \(file.lastPathComponent)", true)
-                print("File is not fully available (OSStatus error 2003334207)")
+                errorHandler?(file)
             } else {
                 logEvent?("Error playing \(file.lastPathComponent): \(error.localizedDescription)", true)
-                print("Failed to play audio: \(error)")
+                errorHandler?(file)
             }
         } catch {
             logEvent?("Unknown error playing \(file.lastPathComponent)", true)
+            errorHandler?(file)
             throw error
         }
     }
@@ -45,11 +48,20 @@ class AudioManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
         currentFile = nil
     }
     
+    func restartCurrentTrack() {
+        guard let player = player, let file = currentFile else { return }
+        player.stop()
+        player.currentTime = 0
+        player.play()
+        logEvent?("Restarted track: \(file.lastPathComponent)", false)
+    }
+    
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         if let file = currentFile {
             logEvent?("Finished playing: \(file.lastPathComponent)", false)
         }
         isPlaying = false
         currentFile = nil
+        finishHandler?()
     }
 }
