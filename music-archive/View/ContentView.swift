@@ -15,34 +15,12 @@ struct ContentView: View {
         HStack {
             // Left: File List
             VStack {
-                List(metadataSearch.audioFiles, id: \.self) { file in
-                    HStack {
-                        Text(file.lastPathComponent)
-                        Spacer()
-                        // Display the star rating control inline.
-                        StarRatingView(file: file)
-                        Button {
-                            // Manual selection cancels random mode.
-                            isRandomPlaying = false
-                            do {
-                                try audioManager.playAudio(from: file)
-                            } catch {
-                                eventLogger.log("Failed to play \(file.lastPathComponent): \(error.localizedDescription)", isError: true)
-                            }
-                        } label: {
-                            Image(systemName: (audioManager.isPlaying && audioManager.currentFile == file)
-                                  ? "stop.circle"
-                                  : "play.circle")
-                        }
-                    }
-                    .contextMenu {
-                        Button("Show in Finder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([file])
-                        }
-                    }
-                }
-                
-                
+                ArchiveFileListView(
+                                   metadataSearch: metadataSearch,
+                                   audioManager: audioManager,
+                                   eventLogger: eventLogger
+                               )
+    
                 HStack {
                     Button("Refresh Archive") {
                         metadataSearch.startSearch()
@@ -59,21 +37,12 @@ struct ContentView: View {
                 // --- Control Panel ---
                 VStack {
                     // Large Random Play/Stop Button & transport controls...
-                    Button(action: {
-                        if isRandomPlaying {
-                            isRandomPlaying = false
-                            audioManager.stopAudio()
-                            eventLogger.log("Stopped random playback", isError: false)
-                        } else {
-                            startRandomPlayback()
-                        }
-                    }) {
-                        Image(systemName: isRandomPlaying ? "stop.circle.fill" : "play.circle.fill")
-                            .resizable()
-                            .frame(width: 80, height: 80)
-                            .foregroundColor(isRandomPlaying ? .red : .green)
-                            .padding()
-                    }
+                   
+                    PlayButton(
+                        metadataSearch: metadataSearch,
+                        audioManager: audioManager,
+                        eventLogger: eventLogger,
+                        startPlaybackAction: startRandomPlayback)
                     
                     HStack {
                         Button(action: { previousTrack() }) {
