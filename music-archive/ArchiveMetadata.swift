@@ -39,5 +39,7 @@ class ArchiveMetadata {
               let rating = Int(ratingStr) else { return nil }
         return rating
     }
+    
+
 }
 

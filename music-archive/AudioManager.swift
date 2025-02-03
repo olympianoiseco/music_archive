@@ -23,7 +23,7 @@ class AudioManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
             player?.play()
             isPlaying = true
             currentFile = file
-            logEvent?("Started playing: \(file.lastPathComponent)", false)
+            logEvent?("PLAY : \(file.lastPathComponent)", false)
         } catch let error as NSError {
             if error.code == 2003334207 {
                 logEvent?("File not fully available: \(file.lastPathComponent)", true)
@@ -41,25 +41,22 @@ class AudioManager: NSObject, ObservableObject, AVAudioPlayerDelegate {
     
     func stopAudio() {
         player?.stop()
-        if let file = currentFile {
-            logEvent?("Stopped playing: \(file.lastPathComponent)", false)
-        }
         isPlaying = false
         currentFile = nil
     }
     
+    var currentPlaybackTime: TimeInterval {
+        player?.currentTime ?? 0
+    }
+
     func restartCurrentTrack() {
         guard let player = player, let file = currentFile else { return }
         player.stop()
         player.currentTime = 0
         player.play()
-        logEvent?("Restarted track: \(file.lastPathComponent)", false)
     }
     
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        if let file = currentFile {
-            logEvent?("Finished playing: \(file.lastPathComponent)", false)
-        }
         isPlaying = false
         currentFile = nil
         finishHandler?()

@@ -54,11 +54,11 @@ struct ContentView: View {
             }
             .padding()
             
-            // Right: Control Panel & Log
+            // Right-hand column of ContentView:
             VStack {
                 // --- Control Panel ---
                 VStack {
-                    // Large Random Play/Stop Button
+                    // Large Random Play/Stop Button & transport controls...
                     Button(action: {
                         if isRandomPlaying {
                             isRandomPlaying = false
@@ -75,7 +75,6 @@ struct ContentView: View {
                             .padding()
                     }
                     
-                    // Fast-forward, Rewind, Restart Buttons
                     HStack {
                         Button(action: { previousTrack() }) {
                             Image(systemName: "backward.fill")
@@ -84,19 +83,40 @@ struct ContentView: View {
                         }
                         .padding()
                         
-                        Button(action: { restartCurrentTrack() }) {
-                            Image(systemName: "gobackward")
-                                .resizable()
-                                .frame(width: 40, height: 40)
-                        }
-                        .padding()
-                        
+
                         Button(action: { nextTrack() }) {
                             Image(systemName: "forward.fill")
                                 .resizable()
                                 .frame(width: 40, height: 40)
                         }
                         .padding()
+                    }
+                }
+                
+                // --- Now Playing Section ---
+                if let currentFile = audioManager.currentFile {
+                    VStack(alignment: .leading) {
+                        Text("Now Playing:")
+                            .font(.headline)
+                        HStack {
+                            Text(currentFile.lastPathComponent)
+                                .lineLimit(1)
+                            Spacer()
+                            StarRatingView(file: currentFile)
+                        }
+                        .padding(.vertical, 4)
+                        // Display the creation date on a new line.
+                        if let creationDate = try? currentFile.resourceValues(forKeys: [.creationDateKey]).creationDate {
+                            Text(DateFormatter.dateOnly.string(from: creationDate))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .contextMenu {
+                        Button("Show in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([currentFile])
+                        }
                     }
                 }
                 
@@ -121,7 +141,7 @@ struct ContentView: View {
                         }
                         .padding(.horizontal, 4)
                     }
-                    .frame(width: 300, height: 400) // adjust as needed
+                    .frame(width: 300, height: 400) // Adjust as needed.
                 }
             }
             .padding()
@@ -191,6 +211,12 @@ struct ContentView: View {
     }
     
     func previousTrack() {
+        // If more than 5 seconds into the track, restart instead.
+        if audioManager.currentPlaybackTime > 5.0 {
+            audioManager.restartCurrentTrack()
+            return
+        }
+        
         guard currentRandomIndex > 0 else { return }
         currentRandomIndex -= 1
         let file = randomHistory[currentRandomIndex]
@@ -201,9 +227,6 @@ struct ContentView: View {
         }
     }
     
-    func restartCurrentTrack() {
-        audioManager.restartCurrentTrack()
-    }
 }
 
 
