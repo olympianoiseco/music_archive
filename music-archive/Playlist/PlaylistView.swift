@@ -1,77 +1,79 @@
-//
-//  PlaylistView.swift
-//  music-archive
-//
-//  Created by Ben Kamen on 2/3/25.
-//
-
 import SwiftUI
+import UniformTypeIdentifiers
 import AppKit
 
-struct PlaylistView: View {
+struct PlaylistListView: View {
     @ObservedObject var playlistStore: PlaylistStore
-    @ObservedObject var audioManager: AudioManager
     @ObservedObject var eventLogger: EventLogger
-
+    @ObservedObject var metadataSearch: MetadataSearch
+    @Binding var currentPlaylist: Playlist?
+    
     var body: some View {
         VStack(alignment: .leading) {
-            if let playlist = playlistStore.currentPlaylist {
-                Text("Playlist: \(playlist.name)")
-                    .font(.headline)
-                List {
-                    ForEach(playlist.tracks, id: \.self) { file in
-                        HStack {
-                            Text(file.lastPathComponent)
-                            Spacer()
-                            StarRatingView(file: file)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            do {
-                                try audioManager.playAudio(from: file)
-                            } catch {
-                                eventLogger.log("Failed to play \(file.lastPathComponent): \(error.localizedDescription)", isError: true)
-                            }
-                        }
-                        .contextMenu {
-                            Button("Show in Finder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([file])
-                            }
-                        }
+            Text("Playlists")
+                .font(.headline)
+            List {
+                ForEach(playlistStore.playlists) { playlist in
+                    HStack {
+                        Text(playlist.name)
+                        Spacer()
                     }
-                    .onMove { indices, newOffset in
-                        playlistStore.moveFile(fromOffsets: indices, toOffset: newOffset)
+                    .padding(4)
+                    .background(currentPlaylist?.id == playlist.id ? Color.blue.opacity(0.2) : Color.clear)
+                    .onTapGesture {
+                        currentPlaylist = playlist
+                        eventLogger.log("Loaded playlist: \(playlist.name)", isError: false)
                     }
+                    .onDrop(of: [UTType.plainText.identifier], delegate: PlaylistDropDelegate(playlist: playlist, playlistStore: playlistStore, eventLogger: eventLogger))
                 }
-                .listStyle(PlainListStyle())
-            } else {
-                Text("No playlist loaded")
-                    .foregroundColor(.secondary)
+            }
+            .listStyle(PlainListStyle())
+            HStack(alignment: .center, spacing: 4) {
+                Button("Generate") {
+                    let twentyTracks = Array(metadataSearch.audioFiles.shuffled().prefix(20))
+                    playlistStore.createNewPlaylist(withTracks: twentyTracks, name: "Playlist \(DateFormatter.dateOnly.string(from: Date()))")
+                }
+                Button("New") {
+                    playlistStore.createNewPlaylist(withTracks: [],
+                                                    name: "Blank \(DateFormatter.dateOnly.string(from: Date()))")
+                }
             }
         }
+       
+        .frame(width: 200)
+       
     }
 }
 
-struct DragRelocateDelegate: DropDelegate {
-    let item: URL
-    @Binding var listData: [URL]
-    @Binding var dragItem: URL?
-
-    func dropEntered(info: DropInfo) {
-        guard let dragItem = dragItem,
-              dragItem != item,
-              let fromIndex = listData.firstIndex(of: dragItem),
-              let toIndex = listData.firstIndex(of: item)
-        else { return }
-        
-        if listData[toIndex] != dragItem {
-            listData.move(fromOffsets: IndexSet(integer: fromIndex),
-                          toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
-        }
-    }
-
+struct PlaylistDropDelegate: DropDelegate {
+    let playlist: Playlist
+    let playlistStore: PlaylistStore
+    let eventLogger: EventLogger
+    
     func performDrop(info: DropInfo) -> Bool {
-        self.dragItem = nil
-        return true
+        if let itemProvider = info.itemProviders(for: [UTType.plainText.identifier]).first {
+            itemProvider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { (data, error) in
+                if let data = data as? Data,
+                   let urlString = String(data: data, encoding: .utf8),
+                   let url = URL(string: urlString) {
+                    DispatchQueue.main.async {
+                        playlistStore.addFile(to: playlist, file: url)
+                        eventLogger.log("Added \(url.lastPathComponent) to playlist \(playlist.name)", isError: false)
+                    }
+                }
+            }
+            return true
+        }
+        return false
     }
+}
+
+#Preview {
+    let playlistStore = PlaylistStore()
+    PlaylistListView(
+        playlistStore: playlistStore,
+        eventLogger: EventLogger(),
+        metadataSearch: MetadataSearch(),
+        currentPlaylist: .constant(nil)
+    )
 }
